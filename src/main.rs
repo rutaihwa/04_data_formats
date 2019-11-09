@@ -11,6 +11,8 @@ use rand::distributions::{Bernoulli, Normal, Uniform};
 use rand::Rng;
 use std::ops::Range;
 
+static INDEX: &[u8] = b"Random service";
+
 fn main() {
     let addr = ([127, 0, 0, 1], 8080).into();
     let builder = Server::bind(&addr);
@@ -47,6 +49,9 @@ fn microservice_handler(
     req: Request<Body>,
 ) -> Box<Future<Item = Response<Body>, Error = Error> + Send> {
     match (req.method(), req.uri().path()) {
+        (&Method::GET, "/") | (&Method::GET, "/random") => {
+            Box::new(future::ok(Response::new(INDEX.into())))
+        }
         (&Method::POST, "/random") => {
             let body = req.into_body().concat2().map(|chunks| {
                 let res = serde_json::from_slice::<RngRequest>(chunks.as_ref())
