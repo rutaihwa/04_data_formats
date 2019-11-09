@@ -5,11 +5,18 @@ extern crate rand;
 extern crate serde_derive;
 extern crate serde_json;
 
+use futures::{future, Future, Stream};
+use hyper::{service::service_fn, Body, Error, Method, Request, Response, Server, StatusCode};
 use rand::distributions::{Bernoulli, Normal, Uniform};
+use rand::Rng;
 use std::ops::Range;
 
 fn main() {
-    println!("Hello, world!");
+    let addr = ([127, 0, 0, 1], 8080).into();
+    let builder = Server::bind(&addr);
+    let server = builder.serve(|| service_fn(microservice_handler));
+    let server = server.map_err(drop);
+    hyper::rt::run(server);
 }
 
 // RngResponse
@@ -33,4 +40,48 @@ enum RngRequest {
     Bernoulli {
         p: f64,
     },
+}
+
+// Handler
+fn microservice_handler(
+    req: Request<Body>,
+) -> Box<Future<Item = Response<Body>, Error = Error> + Send> {
+    match (req.method(), req.uri().path()) {
+        (&Method::POST, "/random") => {
+            let body = req.into_body().concat2().map(|chunks| {
+                let res = serde_json::from_slice::<RngRequest>(chunks.as_ref())
+                    .map(handle_request)
+                    .and_then(|resp| serde_json::to_string(&resp));
+
+                match res {
+                    Ok(body) => Response::new(body.into()),
+                    Err(err) => Response::builder()
+                        .status(StatusCode::UNPROCESSABLE_ENTITY)
+                        .body(err.to_string().into())
+                        .unwrap(),
+                }
+            });
+            Box::new(body)
+        }
+        _ => {
+            let resp = Response::builder()
+                .status(StatusCode::NOT_FOUND)
+                .body("Not Found".into())
+                .unwrap();
+            Box::new(future::ok(resp))
+        }
+    }
+}
+
+// Handling requests
+fn handle_request(request: RngRequest) -> RngResponse {
+    let mut rng = rand::thread_rng();
+    let value = {
+        match request {
+            RngRequest::Uniform { range } => rng.sample(Uniform::from(range)) as f64,
+            RngRequest::Normal { mean, std_dev } => rng.sample(Normal::new(mean, std_dev)) as f64,
+            RngRequest::Bernoulli { p } => rng.sample(Bernoulli::new(p)) as i8 as f64,
+        }
+    };
+    RngResponse { value }
 }
