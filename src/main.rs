@@ -5,6 +5,9 @@ extern crate rand;
 extern crate serde_derive;
 extern crate serde_json;
 
+use rand::distributions::{Bernoulli, Normal, Uniform};
+use std::ops::Range;
+
 fn main() {
     println!("Hello, world!");
 }
@@ -19,7 +22,15 @@ struct RngResponse {
 #[derive(Deserialize)]
 #[serde(tag = "distribution", content = "parameters", rename_all = "lowercase")]
 enum RngRequest {
-    Uniform { range: Range<i32> },
-    Normal { mean: f64, std_dev: f64 },
-    Bernoulli { p: f64 },
+    Uniform {
+        #[serde(flatten)]
+        range: Range<i32>,
+    },
+    Normal {
+        mean: f64,
+        std_dev: f64,
+    },
+    Bernoulli {
+        p: f64,
+    },
 }
