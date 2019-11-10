@@ -1,4 +1,4 @@
-use serd::{
+use serde::{
     de::{self, Visitor},
     Deserialize, Deserializer, Serialize, Serializer,
 };
@@ -26,7 +26,7 @@ pub const BLACK: Color = Color {
 
 // To string
 impl fmt::Display for Color {
-    fn fmt(&self, f: &mut ::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             &WHITE => f.write_str("white"),
             &BLACK => f.write_str("black"),
@@ -49,7 +49,7 @@ impl Serialize for Color {
 impl FromStr for Color {
     type Err = ColorError;
 
-    fn from_str(S: &str) -> Result<Self, Self::Err> {
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             "white" => Ok(WHITE.to_owned()),
             "black" => Ok(BLACK.to_owned()),
@@ -69,7 +69,7 @@ impl FromStr for Color {
 // Visitor
 struct ColorVisitor;
 
-impl<'de> Vistor<'de> for ColorVisitor {
+impl<'de> Visitor<'de> for ColorVisitor {
     type Value = Color;
 
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
