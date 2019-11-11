@@ -1,15 +1,30 @@
+#[macro_use]
+extern crate failure;
 extern crate futures;
 extern crate hyper;
 extern crate rand;
+extern crate serde;
 #[macro_use]
 extern crate serde_derive;
+extern crate base64;
 extern crate serde_json;
+#[macro_use]
+extern crate base64_serde;
 
+mod colors;
+
+use base64::STANDARD;
+use colors::Color;
 use futures::{future, Future, Stream};
 use hyper::{service::service_fn, Body, Error, Method, Request, Response, Server, StatusCode};
 use rand::distributions::{Bernoulli, Normal, Uniform};
 use rand::Rng;
-use std::ops::Range;
+use std::{
+    cmp::{max, min},
+    ops::Range,
+};
+
+base64_serde_type!(Base64Standard, STANDARD);
 
 static INDEX: &[u8] = b"Random service";
 
@@ -23,8 +38,12 @@ fn main() {
 
 // RngResponse
 #[derive(Serialize)]
-struct RngResponse {
-    value: f64,
+#[serde(rename_all = "lowercase")]
+enum RngResponse {
+    Value(f64),
+    #[serde(with = "Base64Standard")]
+    Bytes(Vec<u8>),
+    Color(Color),
 }
 
 // RngRequest
@@ -41,6 +60,14 @@ enum RngRequest {
     },
     Bernoulli {
         p: f64,
+    },
+    Shuffle {
+        #[serde(with = "Base64Standard")]
+        data: Vec<u8>,
+    },
+    Color {
+        from: Color,
+        to: Color,
     },
 }
 
@@ -78,15 +105,38 @@ fn microservice_handler(
     }
 }
 
+// Color_range
+fn color_range(from: u8, to: u8) -> Uniform<u8> {
+    let (from, to) = (min(from, to), max(from, to));
+    Uniform::new_inclusive(from, to)
+}
+
 // Handling requests
 fn handle_request(request: RngRequest) -> RngResponse {
     let mut rng = rand::thread_rng();
-    let value = {
-        match request {
-            RngRequest::Uniform { range } => rng.sample(Uniform::from(range)) as f64,
-            RngRequest::Normal { mean, std_dev } => rng.sample(Normal::new(mean, std_dev)) as f64,
-            RngRequest::Bernoulli { p } => rng.sample(Bernoulli::new(p)) as i8 as f64,
+
+    match request {
+        RngRequest::Uniform { range } => {
+            let value = rng.sample(Uniform::from(range)) as f64;
+            RngResponse::Value(value)
         }
-    };
-    RngResponse { value }
+        RngRequest::Normal { mean, std_dev } => {
+            let value = rng.sample(Normal::new(mean, std_dev)) as f64;
+            RngResponse::Value(value)
+        }
+        RngRequest::Bernoulli { p } => {
+            let value = rng.sample(Bernoulli::new(p)) as i8 as f64;
+            RngResponse::Value(value)
+        }
+        RngRequest::Shuffle { mut data } => {
+            rng.shuffle(&mut data);
+            RngResponse::Bytes(data)
+        }
+        RngRequest::Color { from, to } => {
+            let red = rng.sample(color_range(from.red, to.red));
+            let green = rng.sample(color_range(from.green, to.green));
+            let blue = rng.sample(color_range(from.blue, to.blue));
+            RngResponse::Color(Color { red, green, blue })
+        }
+    }
 }

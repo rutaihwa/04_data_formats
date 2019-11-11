@@ -45,6 +45,15 @@ impl Serialize for Color {
     }
 }
 
+impl<'a> Deserialize<'a> for Color {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'a>,
+    {
+        deserializer.deserialize_any(ColorVisitor)
+    }
+}
+
 // Deserializer
 impl FromStr for Color {
     type Err = ColorError;
