@@ -10,6 +10,8 @@ extern crate base64;
 extern crate serde_json;
 #[macro_use]
 extern crate base64_serde;
+extern crate queryst;
+extern crate serde_cbor;
 
 mod colors;
 
@@ -74,7 +76,7 @@ enum RngRequest {
 // Handler
 fn microservice_handler(
     req: Request<Body>,
-) -> Box<Future<Item = Response<Body>, Error = Error> + Send> {
+) -> Box<dyn Future<Item = Response<Body>, Error = Error> + Send> {
     match (req.method(), req.uri().path()) {
         (&Method::GET, "/") | (&Method::GET, "/random") => {
             Box::new(future::ok(Response::new(INDEX.into())))
